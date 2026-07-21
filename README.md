@@ -10,6 +10,13 @@
 <style>
   @font-face{
     font-family: 'Bounded';
+    src: url('./fonts/Bounded-Regular.ttf') format('truetype');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+  }
+  @font-face{
+    font-family: 'Bounded';
     src: url('./fonts/Bounded-SemiBold.otf') format('opentype');
     font-weight: 600;
     font-style: normal;
@@ -51,7 +58,7 @@
 
   .display{
     font-family: 'Bounded', sans-serif;
-    font-weight: 600;
+    font-weight: 400;
     text-transform: uppercase;
     letter-spacing: 0.01em;
   }
@@ -86,41 +93,17 @@
     aspect-ratio: 4/5;
     border-radius: 28px;
     overflow: hidden;
-    border: 1px dashed rgba(255,122,51,0.4);
+    border: 1px solid var(--border);
     background:
       radial-gradient(circle at 30% 22%, rgba(255,122,51,0.35), transparent 55%),
       radial-gradient(circle at 75% 78%, rgba(255,179,122,0.18), transparent 50%),
       var(--bg-elevated);
     display:flex; align-items:center; justify-content:center;
-    text-align:center; padding: 32px;
   }
-  .visual-frame span{
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 12px;
-    line-height: 1.6;
-    color: var(--ink-muted);
-    max-width: 220px;
-  }
-  .float-card{
-    position:absolute;
-    background: rgba(22,29,44,0.9);
-    backdrop-filter: blur(10px);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 14px 20px;
-    box-shadow: 0 16px 32px -16px rgba(0,0,0,0.6);
-    animation: card-float 7s var(--ease) infinite alternate;
-  }
-  .float-card .num{ font-family:'Bounded',sans-serif; font-weight:600; font-size:26px; color: var(--orange-soft); text-transform:uppercase; }
-  .float-card .lbl{ font-family:'IBM Plex Mono',monospace; font-size:10px; color: var(--ink-muted); margin-top:4px; letter-spacing:0.04em; }
-  .fc-1{ top: -6%; left: -8%; animation-delay: 0s; }
-  .fc-2{ bottom: 10%; right: -10%; animation-delay: -3s; }
-  .fc-3{ top: 42%; right: -12%; animation-delay: -1.5s; }
-  @keyframes card-float{ from{ transform: translateY(0);} to{ transform: translateY(-10px);} }
-  @media (prefers-reduced-motion: reduce){ .float-card{ animation:none; } }
-  @media (max-width: 960px){
-    .float-card{ position:static; margin: 10px auto 0; display:inline-block; }
-    .hero-visual{ display:flex; flex-direction:column; align-items:center; }
+  .visual-frame img{
+    width: 100%; height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1);
   }
   @media (max-width: 480px){
     .visual-frame{ aspect-ratio: 1/1; }
@@ -172,7 +155,7 @@
     box-shadow: 0 14px 28px -16px rgba(255,122,51,0.55), inset 0 1px 0 rgba(255,255,255,0.08);
   }
   .usp-icon svg{ width: 28px; height: 28px; }
-  .usp-card h3{ font-family:'Bounded',sans-serif; font-weight:600; text-transform:uppercase; font-size:15px; margin:0 0 8px; letter-spacing:0.01em; }
+  .usp-card h3{ font-family:'Bounded',sans-serif; font-weight:400; text-transform:uppercase; font-size:15px; margin:0 0 8px; letter-spacing:0.01em; }
   .usp-card p{ font-size:14px; color: var(--ink-muted); line-height:1.5; margin:0; }
 
   /* ===== marquee ===== */
@@ -228,7 +211,7 @@
   }
   .card:hover .overlay{ opacity:1; }
   .card .overlay .cat{ font-family:'IBM Plex Mono',monospace; font-size:11px; color: var(--orange-soft); margin-bottom:6px; }
-  .card .overlay h4{ margin:0; font-family:'Bounded',sans-serif; font-weight:600; text-transform:uppercase; font-size:15px; letter-spacing:0.01em; }
+  .card .overlay h4{ margin:0; font-family:'Bounded',sans-serif; font-weight:400; text-transform:uppercase; font-size:15px; letter-spacing:0.01em; }
 
   .g1{ background: radial-gradient(circle at 30% 20%, #3a2a1f, #0D1320 70%); }
   .g2{ background: radial-gradient(circle at 70% 30%, #33241a, #0D1320 70%); }
@@ -298,11 +281,8 @@
 
     <div class="hero-visual reveal">
       <div class="visual-frame">
-        <span>[МЕСТО ПОД ВАШ AI-ВИЗУАЛ — медуза / нейросеть / любой яркий образ в оранжевой палитре, сгенерированный вами]</span>
+        <img src="./images/hero-taurus.jpg" alt="Огненный телец — символ Елизаветы">
       </div>
-      <div class="float-card fc-1"><div class="num">120+</div><div class="lbl">ПРОЕКТОВ</div></div>
-      <div class="float-card fc-2"><div class="num">98%</div><div class="lbl">ДОВОЛЬНЫХ КЛИЕНТОВ</div></div>
-      <div class="float-card fc-3"><div class="num">4 ГОДА</div><div class="lbl">В AI-ГЕНЕРАЦИИ</div></div>
     </div>
   </div>
 
@@ -379,7 +359,7 @@
 <footer id="contact">
   <div class="footer-photo reveal"><span>[ВАШЕ ФОТО]</span></div>
   <div class="eyebrow reveal">КОНТАКТЫ</div>
-  <h2 class="display reveal">Обсудим твой проект</h2>
+  <h2 class="display reveal">Обсудим твой проект?</h2>
   <div class="contact-links reveal">
     <a href="#">Telegram</a>
     <a href="#">Instagram</a>
