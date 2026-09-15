@@ -3,6 +3,9 @@
 """
 Выгрузка статистики объявлений Avito через официальное API.
 
+Требует платного тарифа на аккаунте Avito — без него раздела API в кабинете нет.
+Если тарифа нет, цифры заносятся руками: см. manual_stats.py.
+
 Что делает:
   1. получает токен по client_id / client_secret,
   2. забирает все объявления кабинета,
@@ -18,7 +21,6 @@
 """
 
 import argparse
-import csv
 import datetime as dt
 import json
 import os
@@ -27,6 +29,9 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import report  # noqa: E402
 
 API = "https://api.avito.ru"
 OUT = pathlib.Path(__file__).resolve().parent / "out"
@@ -168,73 +173,6 @@ def get_stats(token, user_id, item_ids, date_from, date_to):
 # Отчёт
 # --------------------------------------------------------------------------
 
-def diagnose(views, contacts, median_views):
-    """Короткий вердикт по объявлению: где именно узкое место."""
-    if views < 30:
-        return "Мало показов — не хватает данных, объявлению нужен трафик"
-    cr = contacts / views * 100
-    wide = views >= median_views
-    if cr < 2:
-        return "Трафик есть, но не пишут — слабый заголовок / цена / первое фото"
-    if cr < 5:
-        return "Средняя конверсия — текст рабочий, можно докрутить оффер"
-    if not wide:
-        return "ПОБЕДИТЕЛЬ с узким охватом — сюда стоит направить продвижение"
-    return "ПОБЕДИТЕЛЬ — масштабировать: похожие объявления + продвижение"
-
-
-def build_report(account, rows, date_from, date_to):
-    total_views = sum(r["views"] for r in rows)
-    total_contacts = sum(r["contacts"] for r in rows)
-    total_favorites = sum(r["favorites"] for r in rows)
-    cr = (total_contacts / total_views * 100) if total_views else 0
-
-    lines = [
-        "# Статистика Avito",
-        "",
-        "**Кабинет:** {}".format(account.get("name") or account.get("id")),
-        "**Период:** {} — {}".format(date_from, date_to),
-        "**Объявлений в выгрузке:** {}".format(len(rows)),
-        "",
-        "## Итого",
-        "",
-        "| Показатель | Значение |",
-        "|---|---|",
-        "| Просмотры | {} |".format(total_views),
-        "| Контакты (написали/позвонили) | {} |".format(total_contacts),
-        "| В избранном | {} |".format(total_favorites),
-        "| Конверсия просмотр → контакт | {:.2f}% |".format(cr),
-        "",
-        "> Ориентир для обучения и услуг: 3–8%. Ниже 2% — проблема в объявлении, "
-        "а не в бюджете: поднимать показы бессмысленно, пока текст не конвертирует.",
-        "",
-        "## По объявлениям",
-        "",
-        "| Объявление | Просмотры | Контакты | CR | Избранное | Вердикт |",
-        "|---|---:|---:|---:|---:|---|",
-    ]
-    for r in rows:
-        lines.append("| {} | {} | {} | {} | {} | {} |".format(
-            r["title"][:70], r["views"], r["contacts"], r["cr"], r["favorites"], r["verdict"]
-        ))
-
-    lines += [
-        "",
-        "## Как это читать",
-        "",
-        "- **Мало просмотров + высокая CR** — объявление хорошее, его просто не видят. "
-        "Расширять: новые заголовки под соседние запросы, платное продвижение именно сюда.",
-        "- **Много просмотров + низкая CR** — трафик тратится впустую. "
-        "Менять заголовок, первое фото и первые три строки текста, проверить цену.",
-        "- **Много контактов, но нет оплат** — вопрос не к объявлению, а к первому сообщению "
-        "в переписке и квалификации.",
-        "",
-    ]
-    return "\n".join(lines)
-
-
-# --------------------------------------------------------------------------
-
 def main():
     parser = argparse.ArgumentParser(description="Выгрузка статистики объявлений Avito")
     parser.add_argument("--days", type=int, default=60,
@@ -270,44 +208,28 @@ def main():
     raw, totals = get_stats(token, user_id, list(titles.keys()),
                             date_from.isoformat(), date_to.isoformat())
 
-    view_counts = sorted(v["views"] for v in totals.values()) or [0]
-    median_views = view_counts[len(view_counts) // 2]
+    raw_rows = [{
+        "title": titles.get(item_id, str(item_id)),
+        "views": agg["views"],
+        "contacts": agg["contacts"],
+        "favorites": agg["favorites"],
+        "spend": 0,
+    } for item_id, agg in totals.items()]
 
-    rows = []
-    for item_id, agg in totals.items():
-        views, contacts = agg["views"], agg["contacts"]
-        rows.append({
-            "item_id": item_id,
-            "title": titles.get(item_id, str(item_id)),
-            "views": views,
-            "contacts": contacts,
-            "favorites": agg["favorites"],
-            "cr": "{:.2f}%".format(contacts / views * 100) if views else "—",
-            "verdict": diagnose(views, contacts, median_views),
-        })
-    rows.sort(key=lambda r: r["views"], reverse=True)
-
-    OUT.mkdir(parents=True, exist_ok=True)
+    rows = report.build_rows(raw_rows)
     stamp = date_to.isoformat()
 
-    csv_path = OUT / "avito_stats_{}.csv".format(stamp)
-    with csv_path.open("w", encoding="utf-8-sig", newline="") as f:
-        writer = csv.DictWriter(
-            f, fieldnames=["item_id", "title", "views", "contacts", "cr", "favorites", "verdict"]
-        )
-        writer.writeheader()
-        writer.writerows(rows)
+    text = report.build_report(
+        rows,
+        title_line="**Кабинет:** {}".format(account.get("name") or account.get("id")),
+        period_line="**Период:** {} — {}".format(date_from.isoformat(), date_to.isoformat()),
+    )
+    report_path, csv_path = report.write_outputs(OUT, stamp, rows, text)
 
     raw_path = OUT / "avito_raw_{}.json".format(stamp)
     raw_path.write_text(
         json.dumps({"account": account, "items": items, "stats": raw},
                    ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
-
-    report_path = OUT / "report_{}.md".format(stamp)
-    report_path.write_text(
-        build_report(account, rows, date_from.isoformat(), date_to.isoformat()),
         encoding="utf-8",
     )
 

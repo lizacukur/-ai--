@@ -2,3 +2,6 @@
 .env
 # Выгрузки статистики
 out/
+# Кэш Python
+__pycache__/
+*.pyc
