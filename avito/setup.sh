@@ -50,7 +50,7 @@ fi
 say "3. Ставлю стратега"
 
 rm -rf "$STRATEGIST_SKILL"
-cp -r "${HERE}/skills/avito-strategist" "$STRATEGIST_SKILL"
+cp -r "${HERE}/../.claude/skills/avito-strategist" "$STRATEGIST_SKILL"
 ok "avito-strategist установлен"
 
 say "4. Ключи доступа"
