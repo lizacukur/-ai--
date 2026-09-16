@@ -5,7 +5,7 @@
 #   avito-api        — доступ к Avito Business API (чужой, MIT, полный OpenAPI-спек)
 #   avito-strategist — стратегия, аналитика и тексты объявлений (наш)
 #
-# Запуск:  bash avito/setup.sh
+# Запуск:  bash avito/scripts/setup.sh
 
 set -euo pipefail
 
@@ -50,14 +50,14 @@ fi
 say "3. Ставлю стратега"
 
 rm -rf "$STRATEGIST_SKILL"
-cp -r "${HERE}/../.claude/skills/avito-strategist" "$STRATEGIST_SKILL"
+cp -r "${HERE}/../../.claude/skills/avito-strategist" "$STRATEGIST_SKILL"
 ok "avito-strategist установлен"
 
 say "4. Ключи доступа"
 
 ENV_FILE="${HERE}/.env"
 if [ -f "$ENV_FILE" ]; then
-  ok "файл avito/.env уже есть"
+  ok "файл avito/scripts/.env уже есть"
 else
   cat > "$ENV_FILE" <<'ENVEOF'
 # Ключи из кабинета Avito: Настройки -> Avito API -> регистрация приложения.
@@ -65,7 +65,7 @@ else
 AVITO_CLIENT_ID=
 AVITO_CLIENT_SECRET=
 ENVEOF
-  ok "создал avito/.env — впиши в него client_id и client_secret"
+  ok "создал avito/scripts/.env — впиши в него client_id и client_secret"
 fi
 
 say "5. Проверяю связь с Avito"
@@ -75,7 +75,7 @@ set +e
 set -a; . "$ENV_FILE" 2>/dev/null; set +a
 
 if [ -z "${AVITO_CLIENT_ID:-}" ] || [ -z "${AVITO_CLIENT_SECRET:-}" ]; then
-  warn "ключи ещё не вписаны — впиши их в avito/.env и запусти скрипт снова"
+  warn "ключи ещё не вписаны — впиши их в avito/scripts/.env и запусти скрипт снова"
 else
   TOKEN_JSON=$(curl -sS -m 30 -X POST https://api.avito.ru/token/ \
     -H "Content-Type: application/x-www-form-urlencoded" \
@@ -89,7 +89,7 @@ else
   else
     warn "токен не получен. Ответ Avito:"
     printf '    %s\n' "$TOKEN_JSON" | head -3
-    warn "проверь ключи в avito/.env и что в кабинете подключён платный тариф"
+    warn "проверь ключи в avito/scripts/.env и что в кабинете подключён платный тариф"
   fi
 fi
 set -e

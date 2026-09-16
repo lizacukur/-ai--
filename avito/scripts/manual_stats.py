@@ -8,10 +8,10 @@
 и выдаёт вердикт по каждому объявлению.
 
 Запуск:
-    python3 avito/manual_stats.py
-    python3 avito/manual_stats.py путь/к/своей/таблице.csv
+    python3 avito/scripts/manual_stats.py
+    python3 avito/scripts/manual_stats.py путь/к/своей/таблице.csv
 
-Таблица — avito/my_stats.csv. Открывается и правится в Excel,
+Таблица — avito/scripts/my_stats.csv. Открывается и правится в Excel,
 Google Таблицах или в любом текстовом редакторе.
 Колонки: объявление, просмотры, контакты, избранное, расход.
 Последние две можно оставить пустыми.
@@ -114,7 +114,7 @@ def main():
     if not path.exists():
         raise SystemExit(
             "Не нашёл таблицу {}.\n"
-            "Возьми шаблон avito/my_stats.csv, впиши свои цифры из кабинета "
+            "Возьми шаблон avito/scripts/my_stats.csv, впиши свои цифры из кабинета "
             "и запусти снова.".format(path)
         )
 

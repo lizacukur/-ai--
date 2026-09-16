@@ -14,8 +14,8 @@
   5. складывает результат в avito/out/: CSV, сырой JSON и отчёт report.md.
 
 Запуск:
-    python3 avito/avito_stats.py
-    python3 avito/avito_stats.py --days 90
+    python3 avito/scripts/avito_stats.py
+    python3 avito/scripts/avito_stats.py --days 90
 
 Зависимости: только стандартная библиотека Python 3.8+.
 """
@@ -81,7 +81,7 @@ def _request(method, path, token=None, body=None, form=None, params=None):
 # --------------------------------------------------------------------------
 
 def load_credentials():
-    """Читает ключи из переменных окружения или из avito/.env (в git не попадает)."""
+    """Читает ключи из переменных окружения или из avito/scripts/.env (в git не попадает)."""
     env_file = pathlib.Path(__file__).resolve().parent / ".env"
     if env_file.exists():
         for line in env_file.read_text(encoding="utf-8").splitlines():
@@ -97,7 +97,7 @@ def load_credentials():
     if not client_id or not client_secret:
         raise SystemExit(
             "Не найдены ключи доступа.\n"
-            "Создай файл avito/.env с двумя строками:\n"
+            "Создай файл avito/scripts/.env с двумя строками:\n"
             "  AVITO_CLIENT_ID=твой_client_id\n"
             "  AVITO_CLIENT_SECRET=твой_client_secret\n"
             "Где взять: avito.ru -> Профиль -> Настройки -> раздел API -> создать приложение."
