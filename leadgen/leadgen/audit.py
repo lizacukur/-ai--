@@ -87,7 +87,7 @@ def analyze_html(lead: Lead, html: str, final_url: str = "", load_sec: float = 0
         issues.append("Нет Яндекс Метрики: не считают заявки и рекламу")
     facts["booking"] = any(k in low for k in BOOKING)
     facts["chat"] = any(k in low for k in CHAT)
-    facts["messenger_links"] = "wa.me" in low or "whatsapp" in low or "t.me/" in low
+    facts["messenger_links"] = "wa.me" in low or "whatsapp" in low or "t.me/" in low or "max.ru/" in low
     facts["builder"] = next((v for k, v in BUILDERS.items() if k in low), "")
     if not facts["booking"]:
         issues.append("Нет онлайн-записи")
@@ -112,6 +112,8 @@ def analyze_html(lead: Lead, html: str, final_url: str = "", load_sec: float = 0
                     lead.telegram = unique(lead.telegram + [phone])
             elif handle and not handle.startswith(("share", "joinchat")) and "/" not in handle:
                 lead.telegram = unique(lead.telegram + ["@" + handle])
+        elif re.search(r"(?:^|//|\.)max\.ru/[^/?#\s]", href):  # max.ru/u/… или max.ru/имя — чат в MAX
+            lead.max = unique(lead.max + [href.split("?")[0]])
         elif "vk.com/" in href and not lead.vk:
             lead.vk = href
 

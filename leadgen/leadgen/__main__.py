@@ -121,15 +121,30 @@ def remember(leads: list[Lead]) -> None:
         f.writelines(l.key() + "\n" for l in leads)
 
 
+def read_known(name: str, column: str) -> dict:
+    """data/<name>: ваши находки по брендам (колонки brand, city и column)."""
+    path = ROOT / "data" / name
+    if not path.exists():
+        return {}
+    with path.open(encoding="utf-8-sig") as f:
+        return {(r["brand"].strip().lower(), r["city"].strip().lower()): r[column].strip()
+                for r in csv.DictReader(f) if (r.get(column) or "").strip()}
+
+
+def apply_known_sites(leads: list[Lead]) -> None:
+    """data/sites.csv: официальные сайты, найденные вручную (brand, city, website)."""
+    known = read_known("sites.csv", "website")
+    for lead in leads:
+        site = known.get((enrich._brand(lead.name).lower(), lead.city.lower()))
+        if site and not lead.website:
+            lead.website = site if site.startswith("http") else f"https://{site}"
+            lead.site_facts["site_found_by"] = "из data/sites.csv"
+
+
 def apply_known_inn(leads: list[Lead]) -> None:
     """data/inn.csv: ИНН, которые вы нашли сами (колонки brand, city, inn). Бренд — название
     из 2ГИС до запятой. По ИНН директор находится точно, без угадывания по названию."""
-    path = ROOT / "data" / "inn.csv"
-    if not path.exists():
-        return
-    with path.open(encoding="utf-8-sig") as f:
-        known = {(r["brand"].strip().lower(), r["city"].strip().lower()): r["inn"].strip()
-                 for r in csv.DictReader(f) if r.get("inn", "").strip()}
+    known = read_known("inn.csv", "inn")
     for lead in leads:
         inn = known.get((enrich._brand(lead.name).lower(), lead.city.lower()))
         if inn:
@@ -153,6 +168,7 @@ def share_lpr(leads: list[Lead]) -> None:
 
 def process(leads: list[Lead], cfg: dict, use_llm: bool) -> None:
     timeout = cfg["limits"]["site_timeout_sec"]
+    apply_known_sites(leads)
     no_site = [l for l in leads if not l.website]
     if no_site:
         log.info("Ищу сайты по названию: %d компаний без сайта в выдаче…", len(no_site))

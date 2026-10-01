@@ -15,6 +15,7 @@ class Lead:
     emails: list[str] = field(default_factory=list)
     whatsapp: list[str] = field(default_factory=list)   # номера, найденные как WhatsApp
     telegram: list[str] = field(default_factory=list)   # @username или ссылки t.me
+    max: list[str] = field(default_factory=list)        # ссылки на чат в мессенджере MAX (max.ru/…)
     vk: str = ""
     rating: float | None = None
     reviews: int | None = None

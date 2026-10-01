@@ -211,3 +211,20 @@ def test_known_inn_from_csv(tmp_path, monkeypatch):
     lead = Lead(name="Skin Buro, клиника эстетической медицины", city="Санкт-Петербург")
     main.apply_known_inn([lead])
     assert lead.inn == "7840080124"
+
+
+def test_max_link_and_known_sites(tmp_path, monkeypatch):
+    lead = audit.analyze_html(Lead(name="Смайл", website="https://s.ru"),
+                              '<a href="https://max.ru/u/f9LHodD0cOI">MAX</a><a href="https://max.ru/">app</a>',
+                              final_url="https://s.ru")
+    assert lead.max == ["https://max.ru/u/f9LHodD0cOI"]
+    assert export.max_link(lead) == "https://max.ru/u/f9LHodD0cOI"
+
+    import leadgen.__main__ as main
+    (tmp_path / "data").mkdir()
+    (tmp_path / "data" / "sites.csv").write_text("brand,city,website\nДинастия,Санкт-Петербург,dinastiya-spb.ru\n",
+                                                 encoding="utf-8")
+    monkeypatch.setattr(main, "ROOT", tmp_path)
+    lead = Lead(name="Династия, медицинский центр", city="Санкт-Петербург")
+    main.apply_known_sites([lead])
+    assert lead.website == "https://dinastiya-spb.ru"

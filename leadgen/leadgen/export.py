@@ -12,6 +12,11 @@ from .scoring import priority
 OFFER_NAMES = {"site": "Сайт + SEO + Директ", "ai": "ИИ-помощник по сервису", "leadgen": "Лидогенерация"}
 
 
+def max_link(lead: Lead) -> str:
+    """Чат в MAX, если компания указала его на сайте."""
+    return lead.max[0] if lead.max else ""
+
+
 def channels(lead: Lead) -> tuple[str, str]:
     """Куда писать: (ссылка WhatsApp, ссылка Telegram). Явные мессенджеры важнее мобильного."""
     mobile = next((p for p in lead.phones if is_mobile(p)), "")
@@ -27,7 +32,7 @@ def to_excel(leads: list[Lead], path: Path) -> None:
     headers = ["Приоритет", "Компания", "Город", "Ниша", "ЛПР", "Должность", "Точность ЛПР", "ИНН",
                "Что предлагаем", "Нужен сайт (0-100)", "Нужен ИИ (0-100)", "WhatsApp", "Telegram",
                "Телефоны", "Email", "Сайт", "Рейтинг", "Отзывы", "Проблемы сайта", "Сообщение",
-               "Источник", "Статус"]
+               "Источник", "Статус", "MAX"]
     ws.append(headers)
     for cell in ws[1]:
         cell.font = Font(bold=True, color="FFFFFF")
@@ -41,17 +46,17 @@ def to_excel(leads: list[Lead], path: Path) -> None:
             lead.site_facts.get("lpr_confidence", ""), lead.inn, OFFER_NAMES.get(lead.offer, lead.offer),
             lead.site_score, lead.ai_score, "Написать" if wa else "", "Открыть" if tg else "",
             ", ".join(lead.phones), ", ".join(lead.emails), lead.website, lead.rating, lead.reviews,
-            "\n".join(lead.site_issues), lead.message, lead.source, "",
+            "\n".join(lead.site_issues), lead.message, lead.source, "", "Открыть" if max_link(lead) else "",
         ])
         row = ws.max_row
-        for col, link in ((12, wa), (13, tg), (16, lead.website)):
+        for col, link in ((12, wa), (13, tg), (16, lead.website), (23, max_link(lead))):
             if link:
                 ws.cell(row, col).hyperlink = link
                 ws.cell(row, col).style = "Hyperlink"
         for col in (19, 20):
             ws.cell(row, col).alignment = Alignment(wrap_text=True, vertical="top")
 
-    widths = [10, 28, 16, 22, 28, 20, 18, 14, 22, 10, 10, 11, 11, 24, 26, 28, 8, 8, 40, 70, 9, 14]
+    widths = [10, 28, 16, 22, 28, 20, 18, 14, 22, 10, 10, 11, 11, 24, 26, 28, 8, 8, 40, 70, 9, 14, 11]
     for i, w in enumerate(widths, start=1):
         ws.column_dimensions[ws.cell(1, i).column_letter].width = w
     ws.freeze_panes = "C2"
@@ -67,7 +72,7 @@ def to_html(leads: list[Lead], path: Path) -> None:
             "id": lead.key(), "name": lead.name, "city": lead.city, "niche": lead.niche,
             "lpr": " · ".join(x for x in (lead.lpr_name, lead.lpr_post) if x),
             "offer": OFFER_NAMES.get(lead.offer, lead.offer), "priority": priority(lead),
-            "issues": lead.site_issues, "message": lead.message, "wa": wa, "tg": tg,
+            "issues": lead.site_issues, "message": lead.message, "wa": wa, "tg": tg, "max": max_link(lead),
             "site": lead.website, "phones": lead.phones, "emails": lead.emails,
         })
     data = json.dumps(rows, ensure_ascii=False).replace("</", "<\\/")
@@ -124,6 +129,7 @@ function render(){
    <div class="actions">
     ${d.wa?`<button class="wa" data-act="wa" data-i="${i}">WhatsApp</button>`:""}
     ${d.tg?`<button class="tg" data-act="tg" data-i="${i}">Telegram</button>`:""}
+    ${d.max?`<button class="tg" data-act="max" data-i="${i}">MAX</button>`:""}
     <button class="ghost" data-act="copy" data-i="${i}">Копировать текст</button>
     <select data-act="status" data-id="${esc(d.id)}">${Object.entries(ST).map(([k,v])=>`<option value="${k}" ${status(d.id)===k?"selected":""}>${v}</option>`).join("")}</select>
    </div></div>`).join("");
@@ -131,6 +137,7 @@ function render(){
     const d=items[+b.dataset.i],text=document.querySelector(`textarea[data-id="${CSS.escape(d.id)}"]`).value;
     if(b.dataset.act==="wa"){window.open(d.wa.split("?")[0]+"?text="+encodeURIComponent(text),"_blank");setStatus(d.id,"sent")}
     if(b.dataset.act==="tg"){const ok=await copy(text);toast(ok?"Текст скопирован — вставьте в чат":"Скопируйте текст вручную");window.open(d.tg,"_blank");setStatus(d.id,"sent")}
+    if(b.dataset.act==="max"){const ok=await copy(text);toast(ok?"Текст скопирован — вставьте в чат":"Скопируйте текст вручную");window.open(d.max,"_blank");setStatus(d.id,"sent")}
     if(b.dataset.act==="copy"){toast(await copy(text)?"Скопировано":"Не удалось скопировать")}
   });
   document.querySelectorAll("select[data-act=status]").forEach(s=>s.onchange=()=>setStatus(s.dataset.id,s.value));

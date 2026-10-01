@@ -1,6 +1,6 @@
 .env
 output/
-data/
+data/seen.txt
 __pycache__/
 *.pyc
 .pytest_cache/
