@@ -182,12 +182,12 @@ def process(leads: list[Lead], cfg: dict, use_llm: bool) -> None:
         import anthropic
         client = anthropic.Anthropic()
         log.info("Пишу персональные сообщения через Claude…")
-    for lead in leads:
-        niche_cfg = cfg["niches"].get(lead.niche, {})
-        lead.message = (messages.llm_message(lead, niche_cfg, cfg, client) if client
-                        else messages.template_message(lead, niche_cfg, cfg))
-
     leads.sort(key=scoring.priority, reverse=True)
+    for i, lead in enumerate(leads):  # номер в пачке: соседние сообщения получают разные заход и вопрос
+        niche_cfg = cfg["niches"].get(lead.niche, {})
+        lead.message = (messages.llm_message(lead, niche_cfg, cfg, client, i) if client
+                        else messages.template_message(lead, niche_cfg, cfg, i))
+
     out = ROOT / "output"
     out.mkdir(exist_ok=True)
     stamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M")

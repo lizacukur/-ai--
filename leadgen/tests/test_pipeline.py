@@ -144,13 +144,15 @@ def test_scoring_and_message_and_export(tmp_path):
     assert no_site.offer == "site" and no_site.site_score >= 50
     assert clinic.offer == "ai" and clinic.ai_score >= 70
 
-    for lead in (no_site, clinic):
-        lead.message = messages.template_message(lead, CFG["niches"][lead.niche], CFG)
-    assert clinic.message.startswith("Мария Петровна, здравствуйте!")
-    assert "320 отзывов" in clinic.message and "20\u00a0000 ₽" in clinic.message
-    assert "повторные визиты, а частая проблема" in clinic.message   # запятые на месте
-    assert "(Москва)" in no_site.message and "Прислать пример" in no_site.message
-    assert "нет своего сайта" in no_site.message and "80\u00a0000 ₽" in no_site.message
+    clinic.message = messages.template_message(clinic, CFG["niches"]["dental"], CFG, 0)
+    no_site.message = messages.template_message(no_site, CFG["niches"]["beauty_salon"], CFG, 1)
+    assert clinic.message.startswith("Здравствуйте, Мария Петровна!")
+    assert "Вижу, вы работаете в сфере стоматологии." in clinic.message and "нейросеть" in clinic.message
+    assert no_site.message.startswith("Добрый день!") and "поиск" in no_site.message
+    for text in (clinic.message, no_site.message):
+        assert messages.check_message(text) == []
+        assert "₽" not in text and "320" not in text      # ни цены, ни деталей из карточки
+        assert text.endswith(messages.DEFAULT_PS)
 
     wa, tg = export.channels(clinic)
     assert wa == "" and tg == ""                   # контактов нет — кнопок нет
@@ -174,6 +176,29 @@ def test_llm_falls_back_to_template_on_error():
     lead = Lead(name="X", city="Казань", niche="dental", offer="ai")
     text = messages.llm_message(lead, CFG["niches"]["dental"], CFG, Broken())
     assert text == messages.template_message(lead, CFG["niches"]["dental"], CFG)
+
+
+def test_messages_follow_outreach_rules():
+    """Все варианты по всем нишам проходят проверку, а соседние письма в пачке не повторяются."""
+    for niche, niche_cfg in CFG["niches"].items():
+        for offer in ("ai", "site", "leadgen"):
+            texts = [messages.template_message(Lead(name="X", niche=niche, offer=offer, lpr_name=lpr),
+                                               niche_cfg, CFG, v)
+                     for v in range(12) for lpr in ("", "Иванова Мария Петровна")]
+            for text in texts:
+                assert messages.check_message(text) == [], text
+    batch = [messages.template_message(Lead(name="X", niche="medical", offer="ai"), CFG["niches"]["medical"], CFG, v)
+             for v in range(6)]
+    questions = [t.split("\n\n")[-2] for t in batch]
+    openings = [t.split("\n\n")[1] for t in batch]
+    assert len(set(questions)) == 6 and len(set(openings)) >= 3
+
+
+def test_check_message_catches_broken_text():
+    bad = "Привет, Анна! Я Лиза, давайте бесплатно созвонимся — это стоит 20 000 ₽? Ок?"
+    problems = messages.check_message(bad)
+    for part in ("P.s.", "тире", "один вопрос", "бесплатно", "привет", "я лиза", "₽"):
+        assert any(part in p for p in problems), part
 
 
 def test_known_inn_from_csv(tmp_path, monkeypatch):
