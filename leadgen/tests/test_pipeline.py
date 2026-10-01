@@ -147,8 +147,10 @@ def test_scoring_and_message_and_export(tmp_path):
     clinic.message = messages.template_message(clinic, CFG["niches"]["dental"], CFG, 0)
     no_site.message = messages.template_message(no_site, CFG["niches"]["beauty_salon"], CFG, 1)
     assert clinic.message.startswith("Здравствуйте, Мария Петровна!")
-    assert "Вижу, вы работаете в сфере стоматологии." in clinic.message and "нейросеть" in clinic.message
-    assert no_site.message.startswith("Добрый день!") and "поиск" in no_site.message
+    assert "Вижу, вы работаете в сфере стоматологии, а здесь" in clinic.message
+    assert no_site.message.startswith("Добрый день!") and "В салоне" in no_site.message
+    for text in (clinic.message, no_site.message):         # обе услуги: сервис и продвижение
+        assert "Мы " in text and "нейропомощник" in text and "Яндекс" in text
     for text in (clinic.message, no_site.message):
         assert messages.check_message(text) == []
         assert "₽" not in text and "320" not in text      # ни цены, ни деталей из карточки
