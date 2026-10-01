@@ -174,3 +174,13 @@ def test_llm_falls_back_to_template_on_error():
     lead = Lead(name="X", city="Казань", niche="dental", offer="ai")
     text = messages.llm_message(lead, CFG["niches"]["dental"], CFG, Broken())
     assert text == messages.template_message(lead, CFG["niches"]["dental"], CFG)
+
+
+def test_known_inn_from_csv(tmp_path, monkeypatch):
+    import leadgen.__main__ as main
+    (tmp_path / "data").mkdir()
+    (tmp_path / "data" / "inn.csv").write_text("brand,city,inn\nSkin Buro,Санкт-Петербург,7840080124\n", encoding="utf-8")
+    monkeypatch.setattr(main, "ROOT", tmp_path)
+    lead = Lead(name="Skin Buro, клиника эстетической медицины", city="Санкт-Петербург")
+    main.apply_known_inn([lead])
+    assert lead.inn == "7840080124"

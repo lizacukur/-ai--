@@ -35,7 +35,7 @@ def find_lpr(lead: Lead, api_key: str, okved: tuple[str, ...] = ()) -> Lead:
         if lead.inn:
             found = _post(f"{BASE}/findById/party", {"query": lead.inn}, headers)
             if found:
-                _apply(lead, found[0]["data"], "точно (ИНН с сайта)")
+                _apply(lead, found[0]["data"], f"точно (ИНН {lead.site_facts.get('inn_source', 'с сайта')})")
                 return lead
         region = REGIONS.get(lead.city.lower().strip())
         best = None

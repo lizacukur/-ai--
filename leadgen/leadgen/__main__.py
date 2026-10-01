@@ -1,5 +1,6 @@
 """Запуск: python -m leadgen search   или   python -m leadgen csv мой_список.csv"""
 import argparse
+import csv
 import datetime
 import logging
 import os
@@ -120,6 +121,22 @@ def remember(leads: list[Lead]) -> None:
         f.writelines(l.key() + "\n" for l in leads)
 
 
+def apply_known_inn(leads: list[Lead]) -> None:
+    """data/inn.csv: ИНН, которые вы нашли сами (колонки brand, city, inn). Бренд — название
+    из 2ГИС до запятой. По ИНН директор находится точно, без угадывания по названию."""
+    path = ROOT / "data" / "inn.csv"
+    if not path.exists():
+        return
+    with path.open(encoding="utf-8-sig") as f:
+        known = {(r["brand"].strip().lower(), r["city"].strip().lower()): r["inn"].strip()
+                 for r in csv.DictReader(f) if r.get("inn", "").strip()}
+    for lead in leads:
+        inn = known.get((enrich._brand(lead.name).lower(), lead.city.lower()))
+        if inn:
+            lead.inn = inn
+            lead.site_facts["inn_source"] = "из data/inn.csv"
+
+
 def share_lpr(leads: list[Lead]) -> None:
     """Филиалы одной сети: если ЛПР нашёлся у одного, он общий для всех с тем же брендом."""
     found = {}
@@ -146,6 +163,7 @@ def process(leads: list[Lead], cfg: dict, use_llm: bool) -> None:
     with ThreadPoolExecutor(max_workers=8) as pool:
         list(pool.map(lambda l: audit.audit_site(l, timeout), leads))
 
+    apply_known_inn(leads)
     dadata = os.getenv("DADATA_API_KEY")
     if dadata:
         log.info("Ищу ЛПР в ЕГРЮЛ (DaData)…")
