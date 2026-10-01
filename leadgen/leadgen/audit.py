@@ -18,7 +18,7 @@ CHAT = ("jivo", "jivosite", "envybox", "callbackhunter", "b24-widget", "bitrix24
 BUILDERS = {"tilda": "Tilda", "wix.com": "Wix", "ukit": "uKit", "nethouse": "Nethouse",
             "flexbe": "Flexbe", "lpgenerator": "LPgenerator", "wordpress": "WordPress",
             "bitrix": "1С-Битрикс", "joomla": "Joomla"}
-INN_RE = re.compile(r"ИНН[\s:№]*?(\d{10}|\d{12})\b")
+INN_RE = re.compile(r"ИНН(?:\s*/\s*КПП)?[\s:№]*?(\d{10}|\d{12})\b")
 YEAR_RE = re.compile(r"(?:©|&copy;|copyright)\s*(?:\d{4}\s*[-–—]\s*)?(20\d{2})", re.I)
 
 

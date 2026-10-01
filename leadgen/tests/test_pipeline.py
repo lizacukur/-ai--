@@ -5,7 +5,8 @@ from pathlib import Path
 import yaml
 from openpyxl import load_workbook
 
-from leadgen import audit, contacts, enrich, export, messages, scoring, sources
+from leadgen import audit, contacts, discover, enrich, export, messages, scoring, sources
+from leadgen.__main__ import share_lpr
 from leadgen.models import Lead
 
 CFG = yaml.safe_load((Path(__file__).parent.parent / "config.yaml").read_text(encoding="utf-8"))
@@ -85,6 +86,49 @@ def test_dadata_by_inn(monkeypatch):
     assert lead.lpr_name == "Иванова Мария Петровна"
     assert lead.lpr_post == "Генеральный директор"
     assert lead.site_facts["lpr_confidence"].startswith("точно")
+
+
+def _party(name, okved, address, director):
+    return {"value": f'ООО "{name}"', "data": {
+        "inn": "7800000000", "type": "LEGAL", "okved": okved, "name": {"short": name, "short_with_opf": f'ООО "{name}"'},
+        "address": {"value": address}, "management": {"name": director, "post": "ГЕНЕРАЛЬНЫЙ ДИРЕКТОР"}}}
+
+
+def test_dadata_picks_clinic_by_okved_and_address(monkeypatch):
+    """Одноимённых ООО «Династия» в городе много: берём то, что лечит и сидит по адресу из 2ГИС."""
+    found = {"suggestions": [
+        _party("ДИНАСТИЯ", "68.20", "г Санкт-Петербург, пр-кт Стачек, д 72", "Риелтор Иван Иванович"),
+        _party("ДИНАСТИЯ", "86.10", "г Санкт-Петербург, ул Ленина, д 5 литера б", "Полякова Галина Юрьевна"),
+        _party("ДИНАСТИЯ", "86.10", "г Москва, ул Ленина, д 5", "Московский Пётр Петрович"),
+    ]}
+    bodies = []
+    monkeypatch.setattr(enrich.requests, "post", lambda url, json, **k: bodies.append(json) or FakeResp(found))
+    lead = enrich.find_lpr(Lead(name="Династия, медицинский центр", city="Санкт-Петербург",
+                                address="Санкт-Петербург, улица Ленина, 5 лит Б"), "key", ("86",))
+    assert lead.lpr_name == "Полякова Галина Юрьевна"
+    assert lead.site_facts["lpr_confidence"].startswith("вероятно")
+    assert bodies[0]["query"] == "Династия" and bodies[0]["locations"] == [{"kladr_id": "78"}]
+
+
+def test_dadata_rejects_generic_partial_match(monkeypatch):
+    """«Клиника Пирогова» не должна привязаться к случайному ООО «Клиника» в другом месте города."""
+    found = {"suggestions": [_party("КЛИНИКА", "86.23", "г Санкт-Петербург, ул Садовая, д 1", "Кто-то Другой")]}
+    monkeypatch.setattr(enrich.requests, "post", lambda *a, **k: FakeResp(found))
+    lead = enrich.find_lpr(Lead(name="Клиника Пирогова, медицинский центр", city="Санкт-Петербург",
+                                address="Санкт-Петербург, Большой проспект В.О., 49"), "key", ("86",))
+    assert lead.lpr_name == ""
+
+
+def test_site_candidates_and_branch_sharing():
+    assert discover.candidates("Так и ходи", "Санкт-Петербург")[:2] == ["takihodi.ru", "takihodi.com"]
+    assert "dinastiya-spb.ru" in discover.candidates("Династия", "Санкт-Петербург")
+    assert discover.candidates("ААА", "Санкт-Петербург") == []
+    found = Lead(name="Так и ходи, салон", city="Санкт-Петербург", lpr_name="Руденко Елена Александровна",
+                 site_facts={"lpr_confidence": "точно (ИНН с сайта)"})
+    other = Lead(name="Так и ходи, салон для кудрявых", city="Санкт-Петербург")
+    share_lpr([found, other])
+    assert other.lpr_name == "Руденко Елена Александровна"
+    assert "филиал" in other.site_facts["lpr_confidence"]
 
 
 def test_scoring_and_message_and_export(tmp_path):

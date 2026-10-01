@@ -10,7 +10,7 @@ from pathlib import Path
 import yaml
 from dotenv import load_dotenv
 
-from . import audit, enrich, export, messages, scoring, sources
+from . import audit, discover, enrich, export, messages, scoring, sources
 from .models import Lead
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -120,8 +120,28 @@ def remember(leads: list[Lead]) -> None:
         f.writelines(l.key() + "\n" for l in leads)
 
 
+def share_lpr(leads: list[Lead]) -> None:
+    """Филиалы одной сети: если ЛПР нашёлся у одного, он общий для всех с тем же брендом."""
+    found = {}
+    for lead in leads:
+        if lead.lpr_name:
+            found.setdefault((enrich._brand(lead.name).lower(), lead.city.lower()), lead)
+    for lead in leads:
+        src = found.get((enrich._brand(lead.name).lower(), lead.city.lower()))
+        if src and not lead.lpr_name:
+            lead.inn, lead.legal_name = src.inn, src.legal_name
+            lead.lpr_name, lead.lpr_post = src.lpr_name, src.lpr_post
+            lead.site_facts["lpr_confidence"] = src.site_facts.get("lpr_confidence", "") + ", филиал той же сети"
+
+
 def process(leads: list[Lead], cfg: dict, use_llm: bool) -> None:
     timeout = cfg["limits"]["site_timeout_sec"]
+    no_site = [l for l in leads if not l.website]
+    if no_site:
+        log.info("Ищу сайты по названию: %d компаний без сайта в выдаче…", len(no_site))
+        with ThreadPoolExecutor(max_workers=12) as pool:
+            list(pool.map(discover.find_site, no_site))
+        log.info("Сайт нашёлся у %d из них.", sum(1 for l in no_site if l.website))
     log.info("Проверяю сайты: %d компаний…", len(leads))
     with ThreadPoolExecutor(max_workers=8) as pool:
         list(pool.map(lambda l: audit.audit_site(l, timeout), leads))
@@ -130,7 +150,9 @@ def process(leads: list[Lead], cfg: dict, use_llm: bool) -> None:
     if dadata:
         log.info("Ищу ЛПР в ЕГРЮЛ (DaData)…")
         with ThreadPoolExecutor(max_workers=4) as pool:
-            list(pool.map(lambda l: enrich.find_lpr(l, dadata), leads))
+            list(pool.map(lambda l: enrich.find_lpr(
+                l, dadata, tuple(cfg["niches"].get(l.niche, {}).get("okved", ()))), leads))
+        share_lpr(leads)
     else:
         log.info("DADATA_API_KEY не задан — ЛПР не ищу.")
 
