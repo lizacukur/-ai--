@@ -1,5 +1,6 @@
 """Поиск ЛПР: директор/владелец по данным ЕГРЮЛ через DaData."""
 import logging
+import re
 
 import requests
 
@@ -18,17 +19,33 @@ def find_lpr(lead: Lead, api_key: str) -> Lead:
             if found:
                 _apply(lead, found[0]["data"], "точно (ИНН с сайта)")
                 return lead
+        brand = _brand(lead.name)
         found = _post(f"{BASE}/suggest/party",
-                      {"query": lead.name, "count": 10, "status": ["ACTIVE"]}, headers)
-        city = lead.city.lower()
+                      {"query": brand, "count": 10, "status": ["ACTIVE"]}, headers)
+        city = _city_key(lead.city)
+        key = _norm(brand)
         for s in found:
-            address = ((s["data"].get("address") or {}).get("value") or "").lower()
-            if city and city.replace("санкт-петербург", "петербург") in address.replace("санкт-петербург", "петербург"):
+            address = _city_key((s["data"].get("address") or {}).get("value") or "")
+            legal = _norm((s["data"].get("name") or {}).get("short") or s.get("value") or "")
+            if city and city in address and key and (key in legal or legal in key):
                 _apply(lead, s["data"], "предположительно (по названию)")
                 break
     except requests.RequestException as e:
         log.warning("DaData недоступна для %s: %s", lead.name, e)
     return lead
+
+
+def _brand(name: str) -> str:
+    """'Династия, медицинский центр' -> 'Династия': в ЕГРЮЛ нет вида деятельности из 2ГИС."""
+    return name.split(",")[0].strip()
+
+
+def _norm(text: str) -> str:
+    return re.sub(r"[^0-9a-zа-яё]", "", text.lower().replace("ё", "е"))
+
+
+def _city_key(text: str) -> str:
+    return text.lower().replace("санкт-петербург", "петербург")
 
 
 def _post(url: str, body: dict, headers: dict) -> list:
