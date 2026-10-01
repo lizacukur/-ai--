@@ -150,7 +150,7 @@ def test_scoring_and_message_and_export(tmp_path):
     assert "Вижу, вы работаете в сфере стоматологии, а здесь" in clinic.message
     assert no_site.message.startswith("Добрый день!") and "В салоне" in no_site.message
     for text in (clinic.message, no_site.message):         # обе услуги: сервис и продвижение
-        assert "Мы " in text and "нейропомощник" in text and "Яндекс" in text
+        assert "Елизавета" in text and "нейросет" in text and "Яндекс" in text
     for text in (clinic.message, no_site.message):
         assert messages.check_message(text) == []
         assert "₽" not in text and "320" not in text      # ни цены, ни деталей из карточки
@@ -197,9 +197,9 @@ def test_messages_follow_outreach_rules():
 
 
 def test_check_message_catches_broken_text():
-    bad = "Привет, Анна! Я Лиза, давайте бесплатно созвонимся — это стоит 20 000 ₽? Ок?"
+    bad = "Привет, Анна! Давайте бесплатно созвонимся — это стоит 20 000 ₽? Ок?"
     problems = messages.check_message(bad)
-    for part in ("P.s.", "тире", "один вопрос", "бесплатно", "привет", "я лиза", "₽"):
+    for part in ("P.s.", "тире", "один вопрос", "бесплатно", "привет", "₽"):
         assert any(part in p for p in problems), part
 
 
