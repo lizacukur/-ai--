@@ -105,7 +105,7 @@ main{max-width:960px;margin:0 auto;padding:16px;display:grid;gap:12px}
 .name{font-weight:600;font-size:16px}.meta{color:var(--muted);font-size:13px}
 .badge{display:inline-block;padding:2px 8px;border-radius:99px;background:var(--line);font-size:12px;margin-right:4px}
 ul{margin:8px 0;padding-left:18px;color:var(--muted);font-size:13px}
-textarea{width:100%;min-height:150px;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text);font:inherit;resize:vertical}
+textarea{width:100%;min-height:270px;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text);font:inherit;resize:vertical}
 .actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
 button,a.btn{border:0;border-radius:8px;padding:9px 14px;font:inherit;font-weight:600;cursor:pointer;text-decoration:none;color:#fff;background:var(--accent)}
 .wa{background:var(--wa)}.tg{background:var(--tg)}.ghost{background:transparent;color:var(--text);border:1px solid var(--line)}
