@@ -228,3 +228,23 @@ def test_max_link_and_known_sites(tmp_path, monkeypatch):
     lead = Lead(name="Династия, медицинский центр", city="Санкт-Петербург")
     main.apply_known_sites([lead])
     assert lead.website == "https://dinastiya-spb.ru"
+
+
+def test_lpr_profile_and_director_email(tmp_path, monkeypatch):
+    import leadgen.__main__ as main
+    (tmp_path / "data").mkdir()
+    (tmp_path / "data" / "lpr_profiles.csv").write_text(
+        "brand,city,profile,note\nКэнворк,Санкт-Петербург,https://kanwork.ru/kanashkin,Страница владельца\n",
+        encoding="utf-8")
+    monkeypatch.setattr(main, "ROOT", tmp_path)
+    lead = Lead(name="Кэнворк, автосервис", city="Санкт-Петербург", lpr_name="Канашкин Андрей Александрович",
+                emails=["mail@kanwork.ru"], message="Здравствуйте!")
+    main.apply_lpr_profiles([lead])
+    assert lead.lpr_profile == "https://kanwork.ru/kanashkin" and lead.lpr_note == "Страница владельца"
+    assert export.email_subject(lead) == "Руководителю: Канашкин Андрей Александрович"
+    export.to_excel([lead], tmp_path / "l.xlsx")
+    export.to_html([lead], tmp_path / "l.html")
+    ws = load_workbook(tmp_path / "l.xlsx").active
+    assert ws.cell(1, 24).value == "Профиль ЛПР" and ws.cell(2, 25).value == "Страница владельца"
+    html = (tmp_path / "l.html").read_text(encoding="utf-8")
+    assert "Письмо директору" in html and "kanwork.ru/kanashkin" in html

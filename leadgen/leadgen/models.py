@@ -26,6 +26,8 @@ class Lead:
     legal_name: str = ""
     lpr_name: str = ""
     lpr_post: str = ""
+    lpr_profile: str = ""    # публичный рабочий профиль ЛПР (страница основателя, профессиональный аккаунт)
+    lpr_note: str = ""       # как дойти до ЛПР: кто реально решает, что за ресурс
 
     # Аудит сайта и оценки
     site_issues: list[str] = field(default_factory=list)

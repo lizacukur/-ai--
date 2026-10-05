@@ -141,6 +141,19 @@ def apply_known_sites(leads: list[Lead]) -> None:
             lead.site_facts["site_found_by"] = "из data/sites.csv"
 
 
+def apply_lpr_profiles(leads: list[Lead]) -> None:
+    """data/lpr_profiles.csv: рабочие профили ЛПР, которые владельцы сами публикуют (brand, city, profile, note)."""
+    path = ROOT / "data" / "lpr_profiles.csv"
+    if not path.exists():
+        return
+    with path.open(encoding="utf-8-sig") as f:
+        known = {(r["brand"].strip().lower(), r["city"].strip().lower()): r for r in csv.DictReader(f)}
+    for lead in leads:
+        row = known.get((enrich._brand(lead.name).lower(), lead.city.lower()))
+        if row:
+            lead.lpr_profile, lead.lpr_note = row.get("profile", "").strip(), row.get("note", "").strip()
+
+
 def apply_known_inn(leads: list[Lead]) -> None:
     """data/inn.csv: ИНН, которые вы нашли сами (колонки brand, city, inn). Бренд — название
     из 2ГИС до запятой. По ИНН директор находится точно, без угадывания по названию."""
@@ -189,6 +202,7 @@ def process(leads: list[Lead], cfg: dict, use_llm: bool) -> None:
         share_lpr(leads)
     else:
         log.info("DADATA_API_KEY не задан — ЛПР не ищу.")
+    apply_lpr_profiles(leads)
 
     for lead in leads:
         scoring.score(lead, cfg["niches"].get(lead.niche, {}))
