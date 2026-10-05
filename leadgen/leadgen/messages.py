@@ -1,73 +1,50 @@
-"""Первое сообщение ЛПР: шаблон с вариациями или персональное через Claude.
+"""Первое сообщение: кому пишем (ЛПР или администратор) и через что (мессенджер или почта).
 
-Задача первого сообщения: получить ответ, а не продать. Поэтому в нём нет цены.
-Структура:
-1. «Здравствуйте, Имя Отчество!» или «Добрый день, …!»
-2. Показываем, что понимаем их бизнес: на ком в их сфере держатся деньги (постоянные клиенты).
-3. Главная услуга: настраиваем сервис, который возвращает клиентов (напоминания, запись, ответы).
-4. Вторая услуга: нейропомощники для продвижения в Яндексе.
-5. Ровно один мягкий вопрос про консультацию.
-6. Дословный P.s. из config.yaml (messages.ps).
+Тексты утверждены Лизой:
+- ЛПР в мессенджер: обращение по имени-отчеству, кто я и что даю, вопрос в конце.
+- ЛПР на почту: тот же текст и подпись с телефоном и Telegram.
+- Администратору: кто я и просьба передать сообщение руководителю (имя в дательном падеже).
 
-Чтобы сообщения не выглядели рассылкой, приветствие, заход, формулировки услуг и вопрос чередуются.
+Кому писать, решает audience(): ИП и небольшой бизнес, где директор и есть владелец, получают
+текст для ЛПР; сети, крупные клиники, госучреждения и компании без найденного директора получают
+текст для администратора. В панели выбор можно переключить.
 """
-import hashlib
 import logging
 import re
+
+from pytrovich.detector import PetrovichGenderDetector
+from pytrovich.enums import Case, NamePart
+from pytrovich.maker import PetrovichDeclinationMaker
 
 from .models import Lead
 
 log = logging.getLogger(__name__)
 
-DEFAULT_PS = ("P.s.: первичная консультация полностью бесплатна и не займёт много времени. "
-              "Мой контакт: https://t.me/lizaai_consult")
-
-GREETINGS = ("Здравствуйте", "Добрый день")
-
-# Вопрос перед P.s.: единственный CTA. Разная конструкция, а не только синонимы.
-QUESTIONS = (
-    "Есть смысл обсудить это на короткой консультации?",
-    "Если тема близка, можем прикинуть, как это сработает у вас, на консультации?",
-    "Удобно будет коротко поговорить об этом на консультации?",
-    "Интересно было бы посмотреть, как это могло бы выглядеть у вас, на консультации?",
-    "Стоит ли обсудить это на небольшой консультации?",
-    "Если откликается, разберём это на короткой консультации?",
+LPR_MESSENGER = (
+    "Добрый день, {name}!\n\n"
+    "Я {me}, помогаю {plural_dat} с помощью нейросетей сделать сервис для клиентов удобнее, чтобы они "
+    "чаще возвращались, и забираю на нейросети рутину, благодаря которой у руководства и команды "
+    "появляется больше времени на важные задачи.\n\n"
+    "Какие задачи с клиентами или внутри команды сейчас отнимают у вас больше всего времени?"
+)
+LPR_EMAIL = LPR_MESSENGER + "\n\nС ув. {sign}\n{phone}\nTelegram: {telegram}"
+ADMIN = (
+    "Здравствуйте!\n\n"
+    "Меня зовут {me}, я внедряю нейросети в работу {plural_gen}: помогаю улучшить обслуживание клиентов, "
+    "чтобы они возвращались чаще, и снимаю рутинные процессы с руководства и администраторов.\n\n"
+    "Большая просьба передать это {what} {whom}, а также мои контакты ниже. Заранее спасибо!\n\n"
+    "Мой Telegram: {telegram}\n{phone}"
 )
 
-# Заход: показываем, что понимаем, на чём держится их бизнес.
-OPENINGS = (
-    "Вижу, вы работаете в сфере {sphere}, а здесь {repeat}.",
-    "{place} {repeat}.",
-    "{place}, как правило, {repeat}.",
-)
-# Представление: кто я и что решаю. Главное: сервис для возвращаемости клиентов через нейросети.
-INTRO = (
-    "Меня зовут {me}, я внедряю нейросети в сервис, чтобы клиенты возвращались к вам снова. Например, {service}.",
-    "Я {me}, помогаю бизнесу с сервисом с помощью нейросетей. Это {service}, и клиенты возвращаются чаще.",
-    "Меня зовут {me}, я решаю эту задачу через нейросети: настраиваю {service}.",
-)
-# Вторая услуга: продвижение в Яндексе с помощью нейросетей.
-PROMOTION = (
-    "Также мы продвигаем компании в Яндексе с помощью нейропомощников, чтобы новые клиенты находили вас.",
-    "Ещё мы с помощью нейросетей продвигаем организации в Яндексе, если нужен поток новых клиентов.",
-    "А для новых клиентов продвигаем компании в Яндексе: нейропомощники берут на себя большую часть этой работы.",
-)
-# B2B: главное лидогенерация.
-B2B_INTRO = (
-    "Меня зовут {me}, я настраиваю автоматический поиск новых клиентов с помощью нейросетей: {service}.",
-    "Я {me}, помогаю с этим через нейросети: {service}, чтобы менеджеры звонили тёплым.",
-    "Меня зовут {me}, я автоматизирую привлечение клиентов: {service}.",
-)
-B2B_PROMOTION = (
-    "Также мы продвигаем компании в Яндексе с помощью нейропомощников, чтобы заявки приходили и сами.",
-    "Ещё мы с помощью нейросетей продвигаем организации в Яндексе, если нужен входящий поток.",
-    "А для входящих заявок продвигаем компании в Яндексе с помощью нейропомощников.",
-)
+# Признаки того, что на номере администратор, а директор наёмный или далеко
+BIG_FORMS = ("ФГБУ", "ГБУЗ", "ГБУ", "ЧУЗ", "ПАО", "АО ", "ФИЛИАЛ")
+NOT_OWNER_NOTES = ("наёмный", "франшиз")
 
-FORBIDDEN = ("привет", "приветствую", "запишитесь", "закажите", "оформите",
-             "давайте сделаем", "давайте созвонимся", "оставьте заявку", "приходите на консультацию",
-             "не упустите", "в современном мире", "хочу предложить сотрудничество", "надеюсь, это будет полезно",
-             "тонете", "выгора", "теряете клиентов", "конкуренты уже", "₽", "руб")
+FORBIDDEN = ("привет", "приветствую", "запишитесь", "закажите", "оформите", "оставьте заявку",
+             "не упустите", "в современном мире", "₽", "руб.")
+
+_maker = PetrovichDeclinationMaker()
+_gender = PetrovichGenderDetector()
 
 
 def first_name(lpr_name: str) -> str:
@@ -76,120 +53,78 @@ def first_name(lpr_name: str) -> str:
     return " ".join(parts[1:3]) if len(parts) >= 2 else ""
 
 
-def template_message(lead: Lead, niche_cfg: dict, cfg: dict, variant: int | None = None) -> str:
-    """variant — номер сообщения в пачке: соседние письма получают разные приветствие, заход и вопрос."""
-    if variant is None:
-        variant = int(hashlib.md5(lead.name.encode()).hexdigest(), 16) % 1000
-    ps = cfg.get("messages", {}).get("ps", DEFAULT_PS).strip()
+def name_dative(lpr_name: str) -> str:
+    """'Магомедова Пасихат Батировна' -> 'Пасихат Батировне'. Без отчества склонение ненадёжно: имя как есть."""
+    parts = lpr_name.split()
+    if len(parts) < 3:
+        return first_name(lpr_name)
+    first, middle = parts[1], parts[2]
+    try:
+        gender = _gender.detect(firstname=first, middlename=middle)
+        return (f"{_maker.make(NamePart.FIRSTNAME, gender, Case.DATIVE, first)} "
+                f"{_maker.make(NamePart.MIDDLENAME, gender, Case.DATIVE, middle)}")
+    except Exception:  # редкое имя: лучше без склонения, чем с ошибкой в программе
+        return f"{first} {middle}"
+
+
+def audience(lead: Lead) -> str:
+    """'lpr' — пишем директору напрямую, 'admin' — просим администратора передать."""
+    if not first_name(lead.lpr_name):
+        return "admin"
+    if any(w in lead.lpr_note.lower() for w in NOT_OWNER_NOTES):
+        return "admin"
+    if "предприниматель" in lead.lpr_post.lower():
+        return "lpr"
+    if lead.branches >= 3 or lead.legal_name.upper().startswith(BIG_FORMS):
+        return "admin"
+    return "lpr"
+
+
+def build(lead: Lead, niche_cfg: dict, cfg: dict) -> dict:
+    """Все четыре текста: ЛПР и администратору, в мессенджер и на почту."""
+    m = cfg.get("messages", {})
     words = {
-        "sphere": niche_cfg.get("sphere", "вашей сфере"),
-        "place": niche_cfg.get("place", "В вашей сфере"),
-        "repeat": niche_cfg.get("repeat", "деньги делают постоянные клиенты"),
-        "service": niche_cfg.get("service", "напоминания клиентам, запись и ответы на их вопросы"),
-        "me": cfg.get("messages", {}).get("intro_name") or (cfg.get("sender", {}).get("name") or "").split(" ")[0],
+        "me": m.get("intro_name", "Елизавета"),
+        "sign": m.get("sign", "Елизавета Удахина"),
+        "phone": m.get("phone", ""),
+        "telegram": m.get("telegram", "https://t.me/lizaai_consult"),
+        "plural_dat": niche_cfg.get("plural_dat", "компаниям"),
+        "plural_gen": niche_cfg.get("plural_gen", "компаний"),
+        "name": first_name(lead.lpr_name),
+        "whom": name_dative(lead.lpr_name) or f"руководителю {niche_cfg.get('single_gen', 'компании')}",
     }
-    b2b = lead.offer == "leadgen"
-    name = first_name(lead.lpr_name)
-    greeting = GREETINGS[variant % 2]
-    hello = f"{greeting}, {name}!" if name else f"{greeting}!"
-    lines = [
-        OPENINGS[variant % 3].format(**words),  # наблюдение «Вижу, вы…» в одном письме из трёх
-        (B2B_INTRO if b2b else INTRO)[(variant // 3) % 3].format(**words),
-        (B2B_PROMOTION if b2b else PROMOTION)[(variant // 9 + variant) % 3],
-    ]
-    question = QUESTIONS[variant % len(QUESTIONS)]
-    return "\n\n".join([hello, *lines, question, ps])
+    texts = {
+        "admin_messenger": ADMIN.format(what="сообщение", **words),
+        "admin_email": ADMIN.format(what="письмо", **words),
+    }
+    if words["name"]:
+        texts["lpr_messenger"] = LPR_MESSENGER.format(**words)
+        texts["lpr_email"] = LPR_EMAIL.format(**words)
+    return {k: v.rstrip() for k, v in texts.items()}
 
 
-def check_message(text: str, ps: str = DEFAULT_PS) -> list[str]:
-    """Проверка по правилам рассылки. Пустой список — сообщение можно отправлять."""
+def template_message(lead: Lead, niche_cfg: dict, cfg: dict, variant: int | None = None) -> str:
+    """Текст для мессенджера тому, кому программа решила писать (variant оставлен для совместимости)."""
+    return build(lead, niche_cfg, cfg)[f"{audience(lead)}_messenger"]
+
+
+def check_message(text: str, kind: str = "lpr_messenger") -> list[str]:
+    """Проверка по правилам рассылки. Пустой список — можно отправлять."""
     problems = []
-    if not text.rstrip().endswith(ps):
-        problems.append("P.s. не дословный или не в конце")
-    body = text.rstrip()[: -len(ps)] if text.rstrip().endswith(ps) else text
     if "—" in text or "–" in text:
         problems.append("длинное тире")
-    if body.count("?") != 1 or not body.rstrip().endswith("?"):
-        problems.append("нужен ровно один вопрос, последним перед P.s.")
-    if "?" in ps:
-        problems.append("вопрос в P.s.")
-    if re.search(r"бесплатн", body, re.I):
-        problems.append("«бесплатно» вне P.s.")
     if not re.match(r"(Здравствуйте|Добрый день)[,!]", text):
         problems.append("приветствие не «Здравствуйте»/«Добрый день»")
-    low = body.lower()
+    low = text.lower()
     problems += [f"запрещено: «{w}»" for w in FORBIDDEN if w in low]
     if re.search(r"[\U0001F300-\U0001FAFF]", text):
         problems.append("эмодзи")
-    sentences = [s for s in re.split(r"(?<=[.!?])\s+", body.strip()) if s]
-    if len(sentences) > 6:  # приветствие + до 5 коротких предложений
-        problems.append("слишком длинно")
+    if kind.startswith("lpr"):
+        body = text.split("\n\nС ув.")[0].rstrip()
+        if body.count("?") != 1 or not body.endswith("?"):
+            problems.append("нужен ровно один вопрос, последним перед подписью")
+        if kind == "lpr_email" and "С ув." not in text:
+            problems.append("нет подписи")
+    elif "t.me/" not in text:
+        problems.append("нет контакта для передачи")
     return problems
-
-
-SYSTEM_PROMPT = """Ты пишешь первое короткое сообщение владельцу или директору компании в WhatsApp или Telegram. Задача сообщения: чтобы человек ответил, а не чтобы купил. Цены не пиши.
-
-Структура:
-Строка 1. «Здравствуйте, Имя Отчество!» или «Добрый день, Имя Отчество!», а если имени нет: «Здравствуйте!» или «Добрый день!».
-Предложение 2. Покажи, что понимаешь их бизнес: на ком в их сфере держатся деньги (постоянные клиенты, повторные визиты). Без цифр и статистики.
-Предложение 3. Представься по имени из данных и скажи, что решаешь: внедряешь нейросети в сервис для клиентов, чтобы они возвращались (что именно, смотри в данных). Пиши в женском роде.
-Предложение 4. Вторая услуга одной фразой: «мы» продвигаем компании в Яндексе с помощью нейросетей и нейропомощников.
-Предложение 5. Ровно один мягкий вопрос про короткую консультацию. Это единственный призыв.
-Блок 6. Дословно, без изменений, P.s. из данных.
-
-Жёсткие правила:
-1. Во всём сообщении до P.s. ровно один знак вопроса, и он в вопросе перед P.s.
-2. Представление ровно одно, в предложении 3, по имени из данных. Без должностей и регалий.
-3. Нет «Привет» и «Приветствую».
-4. Нет деталей из карточки компании: ни адресов, ни отзывов, ни рейтинга. Только сфера.
-5. Нет давления на боль: не пиши «тонете в рутине», «теряете клиентов», «конкуренты уже».
-6. Нет прямого призыва: «запишитесь», «закажите», «давайте созвонимся», «оставьте заявку».
-7. Слово «бесплатно» только внутри P.s.
-8. Не придумывай цифры, проценты и статистику.
-9. Без штампов: «не упустите», «в современном мире», «ИИ меняет всё», «хочу предложить сотрудничество».
-10. Без символов «—» и «–», без эмодзи, разговорный русский.
-
-Верни только текст сообщения, без пояснений и кавычек."""
-
-OFFER_FOR_LLM = {
-    "ai": "сервис для возвращаемости клиентов",
-    "site": "сервис для возвращаемости клиентов",
-    "leadgen": "автоматический поиск новых клиентов и первые касания для отдела продаж",
-}
-
-
-def llm_message(lead: Lead, niche_cfg: dict, cfg: dict, client, variant: int | None = None) -> str:
-    """Персональный текст от Claude. Если ответ нарушает правила или случилась ошибка, берём шаблон."""
-    if variant is None:
-        variant = int(hashlib.md5(lead.name.encode()).hexdigest(), 16) % 1000
-    ps = cfg.get("messages", {}).get("ps", DEFAULT_PS).strip()
-    facts = "\n".join([
-        f"Имя Отчество получателя: {first_name(lead.lpr_name) or 'неизвестно'}",
-        f"Как представиться: {cfg.get('messages', {}).get('intro_name', 'Елизавета')}",
-        f"Приветствие: {GREETINGS[variant % 2]}",
-        f"Сфера: {niche_cfg.get('sphere', niche_cfg.get('name', lead.niche))}",
-        f"На ком держатся деньги в сфере: {niche_cfg.get('repeat', '')}",
-        f"Главная услуга: {OFFER_FOR_LLM.get(lead.offer, OFFER_FOR_LLM['ai'])}: {niche_cfg.get('service', '')}",
-        "Вторая услуга: продвижение компаний в Яндексе с помощью нейросетей и нейропомощников",
-        f"P.s. (дословно): {ps}",
-    ])
-    try:
-        resp = client.beta.messages.create(
-            model=cfg.get("llm", {}).get("model", "claude-opus-5-5"),
-            max_tokens=2000,
-            system=SYSTEM_PROMPT,
-            output_config={"effort": "low"},
-            betas=["server-side-fallback-2026-07-01"],
-            fallbacks="default",
-            messages=[{"role": "user", "content": facts}],
-        )
-        if resp.stop_reason == "refusal":
-            raise RuntimeError("модель отказалась отвечать")
-        text = "".join(b.text for b in resp.content if b.type == "text").strip()
-        problems = check_message(text, ps)
-        if text and not problems:
-            return text
-        raise RuntimeError("; ".join(problems) or "пустой ответ")
-    except Exception as e:  # сообщение важнее нейросети: при сбое или нарушении правил берём шаблон
-        log.warning("Claude не сработал для %s (%s), беру шаблон", lead.name, e)
-    return template_message(lead, niche_cfg, cfg, variant)

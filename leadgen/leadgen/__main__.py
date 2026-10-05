@@ -207,16 +207,11 @@ def process(leads: list[Lead], cfg: dict, use_llm: bool) -> None:
     for lead in leads:
         scoring.score(lead, cfg["niches"].get(lead.niche, {}))
 
-    client = None
-    if use_llm and cfg.get("llm", {}).get("enabled") and os.getenv("ANTHROPIC_API_KEY"):
-        import anthropic
-        client = anthropic.Anthropic()
-        log.info("Пишу персональные сообщения через Claude…")
     leads.sort(key=scoring.priority, reverse=True)
-    for i, lead in enumerate(leads):  # номер в пачке: соседние сообщения получают разные заход и вопрос
-        niche_cfg = cfg["niches"].get(lead.niche, {})
-        lead.message = (messages.llm_message(lead, niche_cfg, cfg, client, i) if client
-                        else messages.template_message(lead, niche_cfg, cfg, i))
+    for lead in leads:
+        lead.texts = messages.build(lead, cfg["niches"].get(lead.niche, {}), cfg)
+        lead.audience = messages.audience(lead)
+        lead.message = lead.texts[f"{lead.audience}_messenger"]
 
     out = ROOT / "output"
     out.mkdir(exist_ok=True)

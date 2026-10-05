@@ -36,6 +36,8 @@ class Lead:
     ai_score: int = 0        # 0-100: насколько нужен ИИ-помощник
     offer: str = ""          # site / ai / leadgen
     message: str = ""
+    audience: str = ""       # lpr — пишем директору, admin — просим администратора передать
+    texts: dict = field(default_factory=dict)   # тексты: lpr_messenger, lpr_email, admin_messenger, admin_email
 
     def key(self) -> str:
         """Ключ для удаления дублей: домен сайта, иначе первый телефон, иначе название."""
